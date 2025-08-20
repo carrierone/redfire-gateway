@@ -125,6 +125,10 @@ freetdm = []
 simd = ["wide", "bytemuck"]
 simd-avx2 = ["simd"]
 simd-avx512 = ["simd"]
+cuda = ["redfire-codec-engine/cuda"]
+rocm = ["redfire-codec-engine/rocm"]
+gpu = ["cuda"]
+gpu-all = ["cuda", "rocm"]
 
 [[bin]]
 name = "redfire-gateway"

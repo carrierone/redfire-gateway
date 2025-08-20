@@ -590,6 +590,12 @@ pub struct B2buaConfig {
     pub simd_instruction_set: Option<String>,
     pub auto_detect_simd: bool,
     pub simd_fallback: bool,
+    pub enable_gpu: bool,
+    pub gpu_device_id: Option<u32>,
+    pub gpu_backend: Option<String>,
+    pub auto_detect_gpu: bool,
+    pub gpu_fallback: bool,
+    pub gpu_memory_limit_mb: Option<u64>,
     pub routing_table: Vec<RoutingRule>,
     pub clustering: ClusteringConfig,
 }
@@ -936,6 +942,12 @@ impl GatewayConfig {
                 simd_instruction_set: None, // Auto-detect
                 auto_detect_simd: true,
                 simd_fallback: true,
+                enable_gpu: true,
+                gpu_device_id: None, // Auto-select
+                gpu_backend: None,   // Auto-detect (CUDA/ROCm)
+                auto_detect_gpu: true,
+                gpu_fallback: true,
+                gpu_memory_limit_mb: None, // No limit
                 routing_table: vec![
                     RoutingRule {
                         id: "emergency".to_string(),

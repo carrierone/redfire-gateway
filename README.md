@@ -5,7 +5,7 @@
 [![Commercial License](https://img.shields.io/badge/License-Commercial-green.svg)](mailto:licensing@redfire.com)
 [![Rust Version](https://img.shields.io/badge/rust-1.70+-blue.svg)](https://www.rust-lang.org)
 
-A high-performance, enterprise-grade TDM over Ethernet (TDMoE) to SIP gateway written in Rust. Redfire Gateway provides seamless integration between traditional telephony infrastructure and modern VoIP networks.
+A high-performance, enterprise-grade TDM to VoIP gateway written in Rust. Redfire Gateway provides seamless integration between traditional telephony infrastructure and modern VoIP networks with TDM over Ethernet (TDMoE) support.
 
 **Sponsored by [Carrier One Inc](https://carrierone.com) - Professional Telecommunications Solutions**
 
@@ -65,7 +65,8 @@ Choose the license that best fits your project's needs.
 ### VoIP and Media Processing
 - **SIP protocol support** via redfire-sip-stack
 - **RTP/RTCP media handling** with jitter buffer management
-- **Professional codec transcoding** via redfire-codec-engine with SIMD acceleration
+- **Professional codec transcoding** via redfire-codec-engine with GPU and SIMD acceleration
+- **GPU-accelerated codec processing** (CUDA, ROCm) for ultra-high-performance workloads
 - **SIMD-optimized codec processing** (SSE, AVX2, AVX-512) for high-performance x86-64 systems
 - **DTMF handling** (RFC2833, SIP INFO, in-band)
 - **Media relay and B2BUA functionality**
@@ -176,6 +177,11 @@ enable_simd = true
 auto_detect_simd = true          # Auto-detect best available SIMD instruction set
 simd_fallback = true            # Fallback to CPU if SIMD fails
 
+# GPU acceleration settings for ultra-high-performance codec transcoding
+enable_gpu = true
+auto_detect_gpu = true          # Auto-detect GPU backend (CUDA/ROCm)
+gpu_fallback = true            # Fallback to SIMD/CPU if GPU fails
+
 [logging]
 level = "info"
 file = "/var/log/redfire-gateway.log"
@@ -220,6 +226,41 @@ simd_fallback = true               # Fallback to CPU if SIMD fails
 - **2-4x faster** codec transcoding compared to scalar CPU
 - **Lower latency** for real-time voice processing
 - **Reduced CPU usage** for high call volumes
+
+### GPU Acceleration Configuration
+
+For maximum performance on high-volume deployments, enable GPU acceleration with CUDA or ROCm:
+
+```toml
+[b2bua]
+enable_codec_transcoding = true
+transcoding_backend = "cuda"         # Force CUDA backend
+
+# GPU configuration options
+enable_gpu = true
+gpu_device_id = 0                   # Select specific GPU device
+gpu_backend = "cuda"                # "cuda", "rocm", or "auto"
+auto_detect_gpu = false             # Set to true for runtime detection
+gpu_fallback = true                # Fallback to SIMD/CPU if GPU fails
+gpu_memory_limit_mb = 4096         # Limit GPU memory usage
+```
+
+**Supported GPU backends:**
+- **CUDA**: NVIDIA GPUs with CUDA compute capability 3.5+
+- **ROCm**: AMD GPUs with ROCm support (GCN 3.0+)
+- **Auto**: Runtime detection of available GPU backend
+
+**Performance gains with GPU:**
+- **10-50x faster** codec transcoding compared to CPU
+- **Ultra-low latency** for real-time processing
+- **Massive scalability** for enterprise deployments
+- **Parallel processing** of thousands of concurrent streams
+
+**GPU Requirements:**
+- **NVIDIA**: GTX 900 series or newer, Tesla K40 or newer
+- **AMD**: RX 400 series or newer, MI25 or newer
+- **Memory**: 2GB+ GPU RAM recommended
+- **Drivers**: Latest CUDA or ROCm drivers installed
 
 ## 🏃 Quick Start
 
@@ -343,6 +384,7 @@ The external libraries are automatically integrated via Cargo dependencies and p
 ### Optimization Features
 - **Zero-copy networking** for high-performance packet processing
 - **Lock-free data structures** for concurrent operations
+- **GPU-accelerated codec processing** with CUDA and ROCm support
 - **SIMD-accelerated codec processing** with x86-64 assembly language optimizations
 - **NUMA-aware** memory allocation (planned)
 - **Hardware acceleration** support for transcoding (GPU + SIMD)

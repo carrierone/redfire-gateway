@@ -162,6 +162,14 @@ simd_instruction_set = "avx2"    # Force AVX2, or use "auto" for detection
 auto_detect_simd = false         # Use specific instruction set above
 simd_fallback = true            # Fallback to CPU if SIMD fails
 
+# GPU acceleration settings for ultra-high-performance codec transcoding
+enable_gpu = true
+gpu_device_id = 0               # Use specific GPU device (0 = first GPU)
+gpu_backend = "cuda"            # "cuda", "rocm", or "auto" for detection
+auto_detect_gpu = false         # Use specific backend above
+gpu_fallback = true            # Fallback to SIMD/CPU if GPU fails
+gpu_memory_limit_mb = 4096     # Limit GPU memory usage to 4GB
+
 # Production routing rules
 [[b2bua.routing_table]]
 id = "emergency-911"

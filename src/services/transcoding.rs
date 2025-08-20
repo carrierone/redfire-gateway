@@ -20,6 +20,7 @@ use redfire_codec_engine::{
     AudioCodec, CodecService, CodecConfig, create_default_service,
     gpu_available, available_gpu_backends, simd_available, 
     available_simd_features, create_simd_service, SimdConfig,
+    GpuConfig, get_gpu_devices, create_gpu_service_with_config,
 };
 
 #[cfg(any(feature = "cuda", feature = "rocm"))]
@@ -219,11 +220,19 @@ pub struct TranscodingService {
     enable_simd: bool,
     auto_detect_simd: bool,
     simd_fallback: bool,
+    gpu_config: GpuConfig,
+    enable_gpu: bool,
+    auto_detect_gpu: bool,
+    gpu_fallback: bool,
 }
 
 impl TranscodingService {
     pub fn new(backend_preference: TranscodingBackend) -> Self {
-        Self::new_with_simd_config(backend_preference, true, true, true, None)
+        Self::new_with_full_config(
+            backend_preference, 
+            true, true, true, None,    // SIMD config
+            true, true, true, None, None, None  // GPU config
+        )
     }
 
     pub fn new_with_simd_config(
@@ -233,6 +242,26 @@ impl TranscodingService {
         simd_fallback: bool,
         simd_instruction_set: Option<String>,
     ) -> Self {
+        Self::new_with_full_config(
+            backend_preference,
+            enable_simd, auto_detect_simd, simd_fallback, simd_instruction_set,
+            true, true, true, None, None, None  // Default GPU config
+        )
+    }
+
+    pub fn new_with_full_config(
+        backend_preference: TranscodingBackend,
+        enable_simd: bool,
+        auto_detect_simd: bool,
+        simd_fallback: bool,
+        simd_instruction_set: Option<String>,
+        enable_gpu: bool,
+        auto_detect_gpu: bool,
+        gpu_fallback: bool,
+        gpu_device_id: Option<u32>,
+        gpu_backend: Option<String>,
+        gpu_memory_limit_mb: Option<u64>,
+    ) -> Self {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
 
         info!("Creating transcoding service with redfire-codec-engine integration, backend preference: {:?}", backend_preference);
@@ -241,8 +270,13 @@ impl TranscodingService {
         if gpu_available() {
             let backends = available_gpu_backends();
             info!("GPU transcoding available with backends: {:?}", backends);
+            
+            // Log available GPU devices
+            if let Ok(devices) = get_gpu_devices() {
+                info!("Available GPU devices: {:?}", devices);
+            }
         } else {
-            info!("GPU transcoding not available, using CPU-only transcoding");
+            info!("GPU transcoding not available");
         }
 
         // Log SIMD availability
@@ -261,6 +295,16 @@ impl TranscodingService {
             fallback_to_scalar: simd_fallback,
         };
 
+        // Create GPU configuration
+        let gpu_config = GpuConfig {
+            enabled: enable_gpu,
+            device_id: gpu_device_id,
+            backend: gpu_backend,
+            auto_detect: auto_detect_gpu,
+            memory_limit_mb: gpu_memory_limit_mb,
+            fallback_to_cpu: gpu_fallback,
+        };
+
         Self {
             backend_preference,
             codec_service: None, // Will be initialized on first use
@@ -272,6 +316,10 @@ impl TranscodingService {
             enable_simd,
             auto_detect_simd,
             simd_fallback,
+            gpu_config,
+            enable_gpu,
+            auto_detect_gpu,
+            gpu_fallback,
         }
     }
 
@@ -304,39 +352,44 @@ impl TranscodingService {
                 }
             }
             #[cfg(any(feature = "cuda", feature = "rocm"))]
-            TranscodingBackend::Gpu | TranscodingBackend::Cuda => {
-                match create_gpu_service().await {
+            TranscodingBackend::Gpu | TranscodingBackend::Cuda | TranscodingBackend::Rocm => {
+                match create_gpu_service_with_config(self.gpu_config.clone()).await {
                     Ok(service) => {
                         self.codec_service = Some(service);
-                        info!("GPU transcoding service initialized successfully");
+                        info!("GPU transcoding service initialized successfully with config: {:?}", self.gpu_config);
                     }
                     Err(e) => {
-                        warn!("Failed to initialize GPU service, falling back to CPU: {}", e);
-                        self.codec_service = Some(create_default_service().await
-                            .map_err(|e| crate::Error::Protocol(format!("Failed to create fallback codec service: {}", e)))?);
+                        warn!("Failed to initialize GPU service: {}", e);
+                        if self.gpu_fallback {
+                            warn!("Falling back to CPU transcoding");
+                            self.codec_service = Some(create_default_service().await
+                                .map_err(|e| crate::Error::Protocol(format!("Failed to create fallback codec service: {}", e)))?);
+                        } else {
+                            return Err(crate::Error::Protocol(format!("GPU initialization failed and fallback disabled: {}", e)));
+                        }
                     }
                 }
             }
             TranscodingBackend::Auto => {
-                // Auto-detect best available backend
-                if self.enable_simd && simd_available() {
-                    info!("Auto-detected SIMD support, using SIMD backend");
-                    match create_simd_service(self.simd_config.clone()).await {
+                // Auto-detect best available backend (prioritize GPU > SIMD > CPU)
+                if self.enable_gpu && gpu_available() {
+                    info!("Auto-detected GPU support, using GPU backend");
+                    #[cfg(any(feature = "cuda", feature = "rocm"))]
+                    match create_gpu_service_with_config(self.gpu_config.clone()).await {
                         Ok(service) => {
                             self.codec_service = Some(service);
-                            info!("Auto-selected SIMD transcoding service initialized successfully");
+                            info!("Auto-selected GPU transcoding service initialized successfully");
                         }
                         Err(e) => {
-                            warn!("SIMD auto-selection failed: {}, trying GPU", e);
-                            #[cfg(any(feature = "cuda", feature = "rocm"))]
-                            if gpu_available() {
-                                match create_gpu_service().await {
+                            warn!("GPU auto-selection failed: {}, trying SIMD", e);
+                            if self.enable_simd && simd_available() {
+                                match create_simd_service(self.simd_config.clone()).await {
                                     Ok(service) => {
                                         self.codec_service = Some(service);
-                                        info!("Auto-selected GPU transcoding service initialized successfully");
+                                        info!("Auto-selected SIMD transcoding service initialized successfully");
                                     }
                                     Err(e) => {
-                                        warn!("GPU auto-selection also failed: {}, falling back to CPU", e);
+                                        warn!("SIMD auto-selection also failed: {}, falling back to CPU", e);
                                         self.codec_service = Some(create_default_service().await
                                             .map_err(|e| crate::Error::Protocol(format!("Failed to create fallback codec service: {}", e)))?);
                                     }
@@ -345,31 +398,40 @@ impl TranscodingService {
                                 self.codec_service = Some(create_default_service().await
                                     .map_err(|e| crate::Error::Protocol(format!("Failed to create fallback codec service: {}", e)))?);
                             }
-                            #[cfg(not(any(feature = "cuda", feature = "rocm")))]
-                            {
-                                self.codec_service = Some(create_default_service().await
-                                    .map_err(|e| crate::Error::Protocol(format!("Failed to create fallback codec service: {}", e)))?);
-                            }
-                        }
-                    }
-                } else if gpu_available() {
-                    info!("Auto-detected GPU support, using GPU backend");
-                    #[cfg(any(feature = "cuda", feature = "rocm"))]
-                    match create_gpu_service().await {
-                        Ok(service) => {
-                            self.codec_service = Some(service);
-                            info!("Auto-selected GPU transcoding service initialized successfully");
-                        }
-                        Err(e) => {
-                            warn!("GPU auto-selection failed: {}, falling back to CPU", e);
-                            self.codec_service = Some(create_default_service().await
-                                .map_err(|e| crate::Error::Protocol(format!("Failed to create fallback codec service: {}", e)))?);
                         }
                     }
                     #[cfg(not(any(feature = "cuda", feature = "rocm")))]
                     {
-                        self.codec_service = Some(create_default_service().await
-                            .map_err(|e| crate::Error::Protocol(format!("Failed to create codec service: {}", e)))?);
+                        // GPU not compiled in, try SIMD
+                        if self.enable_simd && simd_available() {
+                            match create_simd_service(self.simd_config.clone()).await {
+                                Ok(service) => {
+                                    self.codec_service = Some(service);
+                                    info!("Auto-selected SIMD transcoding service initialized successfully");
+                                }
+                                Err(e) => {
+                                    warn!("SIMD auto-selection failed: {}, falling back to CPU", e);
+                                    self.codec_service = Some(create_default_service().await
+                                        .map_err(|e| crate::Error::Protocol(format!("Failed to create codec service: {}", e)))?);
+                                }
+                            }
+                        } else {
+                            self.codec_service = Some(create_default_service().await
+                                .map_err(|e| crate::Error::Protocol(format!("Failed to create codec service: {}", e)))?);
+                        }
+                    }
+                } else if self.enable_simd && simd_available() {
+                    info!("Auto-detected SIMD support, using SIMD backend");
+                    match create_simd_service(self.simd_config.clone()).await {
+                        Ok(service) => {
+                            self.codec_service = Some(service);
+                            info!("Auto-selected SIMD transcoding service initialized successfully");
+                        }
+                        Err(e) => {
+                            warn!("SIMD auto-selection failed: {}, falling back to CPU", e);
+                            self.codec_service = Some(create_default_service().await
+                                .map_err(|e| crate::Error::Protocol(format!("Failed to create fallback codec service: {}", e)))?);
+                        }
                     }
                 } else {
                     info!("No accelerated backends available, using CPU");
@@ -470,8 +532,32 @@ impl TranscodingService {
     }
 
     pub async fn get_device_info(&self) -> Vec<GpuDevice> {
-        // Return empty device list in stub mode
-        vec![]
+        if !self.enable_gpu || !gpu_available() {
+            return vec![];
+        }
+
+        match get_gpu_devices() {
+            Ok(devices) => {
+                devices.into_iter().map(|device| GpuDevice {
+                    id: device.id,
+                    name: device.name,
+                    backend: match device.backend.as_str() {
+                        "cuda" => GpuBackend::Cuda,
+                        "rocm" => GpuBackend::Rocm,
+                        _ => GpuBackend::None,
+                    },
+                    memory_total_mb: device.memory_total_mb,
+                    memory_free_mb: device.memory_free_mb,
+                    compute_capability: device.compute_capability,
+                    is_available: device.is_available,
+                    current_utilization: device.current_utilization,
+                }).collect()
+            }
+            Err(e) => {
+                warn!("Failed to get GPU device information: {}", e);
+                vec![]
+            }
+        }
     }
 
     pub fn get_active_sessions(&self) -> Vec<TranscodingSession> {
