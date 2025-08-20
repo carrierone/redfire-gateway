@@ -1,6 +1,6 @@
 # Redfire Gateway
 
-[![Build Status](https://github.com/carrierone/sipfire-gateway/workflows/CI/badge.svg)](https://github.com/carrierone/sipfire-gateway/actions)
+[![Build Status](https://github.com/carrierone/redfire-gateway/workflows/CI/badge.svg)](https://github.com/carrierone/redfire-gateway/actions)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Commercial License](https://img.shields.io/badge/License-Commercial-green.svg)](mailto:licensing@redfire.com)
 [![Rust Version](https://img.shields.io/badge/rust-1.70+-blue.svg)](https://www.rust-lang.org)
@@ -110,8 +110,8 @@ Choose the license that best fits your project's needs.
 
 ```bash
 # Clone the repository
-git clone https://github.com/carrierone/sipfire-gateway.git
-cd sipfire-gateway
+git clone https://github.com/carrierone/redfire-gateway.git
+cd redfire-gateway
 
 # Build the project
 cargo build --release
@@ -407,7 +407,7 @@ The external libraries are automatically integrated via Cargo dependencies and p
 
 ## 🐛 Known Issues
 
-- See [GitHub Issues](https://github.com/carrierone/sipfire-gateway/issues) for current known issues and their status
+- See [GitHub Issues](https://github.com/carrierone/redfire-gateway/issues) for current known issues and their status
 
 ## 🗺️ Roadmap
 
@@ -432,8 +432,8 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ### Development Setup
 ```bash
-git clone https://github.com/carrierone/sipfire-gateway.git
-cd sipfire-gateway
+git clone https://github.com/carrierone/redfire-gateway.git
+cd redfire-gateway
 cargo build
 cargo test --lib  # Core tests should pass
 ```
@@ -448,9 +448,9 @@ Please report issues using our [issue templates](.github/ISSUE_TEMPLATE/).
 ## 🆘 Support
 
 ### Open Source Support (GPL Version)
-- **Documentation**: [Wiki](https://github.com/carrierone/sipfire-gateway/wiki)
-- **Issues**: [GitHub Issues](https://github.com/carrierone/sipfire-gateway/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/carrierone/sipfire-gateway/discussions)
+- **Documentation**: [Wiki](https://github.com/carrierone/redfire-gateway/wiki)
+- **Issues**: [GitHub Issues](https://github.com/carrierone/redfire-gateway/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/carrierone/redfire-gateway/discussions)
 - **Community**: Best-effort community support
 
 ### Commercial Support
