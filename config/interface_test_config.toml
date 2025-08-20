@@ -1,0 +1,255 @@
+# Redfire Gateway Interface Testing Configuration
+#
+# This file defines default parameters for interface testing.
+# Customize these values based on your specific deployment requirements.
+
+[general]
+# Maximum number of concurrent tests
+max_concurrent_tests = 10
+
+# Default test timeout in seconds
+default_timeout = 300
+
+# Enable detailed logging
+verbose_logging = true
+
+# Test result retention period in days
+result_retention_days = 30
+
+[tdmoe_loopback]
+# Default test duration for loopback tests (seconds)
+default_duration = 30
+
+# Default test pattern
+default_pattern = "prbs15"
+
+# Success criteria
+min_success_rate = 99.9
+max_bit_error_rate = 1e-6
+max_frame_error_rate = 0.001
+max_average_delay_ms = 50
+max_jitter_ms = 10
+
+# Channels to test (empty = all channels)
+default_channels = []
+
+[cross_port_wiring]
+# Default test duration for cross-port tests (seconds)
+default_duration = 60
+
+# Default test pattern
+default_pattern = "alternating"
+
+# Success criteria (slightly relaxed for cross-port)
+min_success_rate = 99.0
+max_bit_error_rate = 1e-6
+max_frame_error_rate = 0.01
+max_average_delay_ms = 100
+max_jitter_ms = 20
+
+[end_to_end_calls]
+# Default call duration (seconds)
+default_duration = 60
+
+# Default test tone frequency (Hz)
+default_tone_frequency = 1000.0
+
+# Voice quality thresholds
+min_mos_score = 4.0
+max_acceptable_delay_ms = 150
+max_acceptable_jitter_ms = 50
+
+# Call setup timeout (seconds)
+call_setup_timeout = 10
+
+[test_patterns]
+# Available test patterns and their characteristics
+[test_patterns.prbs15]
+name = "PRBS-15"
+description = "Pseudo-Random Binary Sequence 2^15-1"
+recommended_for = ["general_testing", "ber_analysis"]
+
+[test_patterns.prbs23]
+name = "PRBS-23" 
+description = "Pseudo-Random Binary Sequence 2^23-1"
+recommended_for = ["comprehensive_testing", "long_duration"]
+
+[test_patterns.prbs31]
+name = "PRBS-31"
+description = "Pseudo-Random Binary Sequence 2^31-1"
+recommended_for = ["stress_testing", "maximum_randomness"]
+
+[test_patterns.all_zeros]
+name = "All Zeros"
+description = "Continuous zero pattern"
+recommended_for = ["stuck_bit_detection", "baseline_testing"]
+
+[test_patterns.all_ones]
+name = "All Ones"
+description = "Continuous one pattern"
+recommended_for = ["stuck_bit_detection", "power_testing"]
+
+[test_patterns.alternating]
+name = "Alternating"
+description = "010101... pattern"
+recommended_for = ["timing_recovery", "cross_port_testing"]
+
+[automated_suites]
+# Predefined test suite configurations
+
+[automated_suites.basic_connectivity]
+name = "Basic Connectivity"
+description = "Essential connectivity validation"
+include_loopback = true
+include_cross_port = true
+include_calls = false
+test_duration = 30
+required_spans = 2
+
+[automated_suites.system_validation]
+name = "System Validation"
+description = "Comprehensive system testing"
+include_loopback = true
+include_cross_port = true
+include_calls = true
+include_stress_tests = false
+test_duration = 60
+required_spans = 2
+
+[automated_suites.production_readiness]
+name = "Production Readiness"
+description = "Extended validation for production"
+include_loopback = true
+include_cross_port = true
+include_calls = true
+include_stress_tests = true
+test_duration = 300
+required_spans = 3
+min_call_volume = 100
+
+[troubleshooting]
+# Troubleshooting test configurations
+
+[troubleshooting.high_latency]
+test_duration = 180
+pattern = "alternating"
+max_delay_threshold_us = 200
+strict_jitter_threshold_us = 50
+
+[troubleshooting.packet_loss]
+test_duration = 300
+pattern = "prbs15"
+min_success_rate = 99.99
+frame_loss_threshold = 0.0001
+
+[troubleshooting.bit_errors]
+test_patterns = ["all_zeros", "all_ones", "prbs31"]
+test_duration = 120
+max_ber_threshold = 1e-12
+
+[troubleshooting.sync_issues]
+test_duration = 600
+pattern = "lapd"
+max_jitter_threshold_us = 10
+timing_stability_window = 300
+
+[troubleshooting.crosstalk]
+test_duration = 300
+pattern = "alternating"
+adjacent_span_only = true
+isolation_threshold_db = 60
+
+[troubleshooting.timing_drift]
+test_duration = 1800  # 30 minutes
+pattern = "timing_reference"
+drift_threshold_ppm = 1.0
+measurement_interval = 60
+
+[spans]
+# Span-specific configuration
+# Customize these based on your actual hardware
+
+[spans.span1]
+enabled = true
+type = "E1"  # or "T1"
+channels = 30  # 30 for E1, 24 for T1
+framing = "CRC4"
+line_coding = "HDB3"
+clock_source = "internal"
+
+[spans.span2]
+enabled = true
+type = "E1"
+channels = 30
+framing = "CRC4"
+line_coding = "HDB3"
+clock_source = "recovered"
+
+[spans.span3]
+enabled = false
+type = "T1"
+channels = 24
+framing = "ESF"
+line_coding = "B8ZS"
+clock_source = "recovered"
+
+[reporting]
+# Test reporting configuration
+
+# Generate HTML reports
+html_reports = true
+html_template = "default"
+
+# Generate JSON exports
+json_exports = true
+include_raw_data = false
+
+# Email notifications
+email_notifications = false
+email_on_failure = true
+email_recipients = ["admin@company.com"]
+
+# SNMP traps for test results
+snmp_traps = false
+trap_community = "public"
+trap_destinations = ["192.168.1.100"]
+
+[thresholds]
+# Global alarm thresholds
+
+# Critical thresholds (raise critical alarms)
+critical_frame_loss_rate = 1.0
+critical_bit_error_rate = 1e-3
+critical_call_failure_rate = 10.0
+
+# Major thresholds (raise major alarms)
+major_frame_loss_rate = 0.1
+major_bit_error_rate = 1e-6
+major_call_failure_rate = 1.0
+
+# Minor thresholds (raise minor alarms)
+minor_frame_loss_rate = 0.01
+minor_bit_error_rate = 1e-9
+minor_call_failure_rate = 0.1
+
+[integration]
+# Integration with external systems
+
+# Performance monitoring
+prometheus_metrics = true
+prometheus_port = 9090
+
+# Logging
+syslog_enabled = true
+syslog_facility = "local0"
+syslog_severity = "info"
+
+# SNMP integration
+snmp_enabled = true
+snmp_community = "public"
+snmp_port = 161
+
+# TR-069 integration (for remote management)
+tr069_enabled = false
+tr069_acs_url = "https://acs.company.com"
+tr069_periodic_inform = 300

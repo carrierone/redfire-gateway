@@ -1,0 +1,159 @@
+[package]
+name = "redfire-gateway"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.70.0"
+authors = ["Redfire Team <team@redfire.com>", "Carrier One Inc <support@carrierone.com>"]
+description = "High-performance TDM over Ethernet to SIP gateway with comprehensive telecom protocol support (Sponsored by Carrier One Inc)"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/redfire/redfire-gateway"
+homepage = "https://github.com/redfire/redfire-gateway"
+documentation = "https://docs.rs/redfire-gateway"
+readme = "README.md"
+keywords = ["telecom", "sip", "tdm", "gateway", "voip"]
+categories = ["network-programming"]
+exclude = [
+    "target/",
+    ".git/",
+    ".github/",
+    "*.log",
+    ".vscode/",
+    ".idea/",
+]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+tokio-util = { version = "0.7", features = ["full"] }
+
+# Networking
+socket2 = { version = "0.5", features = ["all"] }
+mio = { version = "0.8", features = ["os-poll", "net"] }
+bytes = "1.5"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Configuration
+config = "0.14"
+clap = { version = "4.4", features = ["derive", "env"] }
+
+# Cryptography and encoding
+hex = "0.4"
+base64 = "0.21"
+crc = "3.0"
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+
+# Collections and utilities
+dashmap = "5.5"
+once_cell = "1.19"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Redfire external libraries
+redfire-codec-engine = { path = "../redfire-switch/redfire-codec-engine" }
+redfire-sip-stack = { path = "../redfire-switch/redfire-sip-stack" }
+
+# SNMP - commented out for now
+# snmp = "0.11"
+# ber = "0.0.6"
+
+# Audio/codec support - commented out for now  
+# libopus-sys = { version = "0.1", optional = true }
+# g711 = "0.2"
+
+# FreeTDM bindings (would need custom implementation)
+# freetdm-sys = { path = "./freetdm-sys" }
+
+# Performance monitoring
+sysinfo = "0.30"
+procfs = "0.16"
+
+# Protocol parsing - commented out for now
+# nom = "7.1"
+# pcap-parser = "0.14"
+
+# CLI
+rustyline = "13.0"
+colored = "2.1"
+
+# Metrics
+prometheus = { version = "0.13", features = ["process"] }
+
+# Random number generation
+rand = "0.8"
+
+# Async traits
+async-trait = "0.1"
+
+# Regular expressions
+regex = "1.10"
+
+# HTTP client for CLI API calls
+reqwest = { version = "0.11", features = ["json"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.8"
+criterion = "0.5"
+
+[features]
+default = ["performance-monitoring"]
+performance-monitoring = []
+freetdm = []
+
+[[bin]]
+name = "redfire-gateway"
+path = "src/main.rs"
+
+[[bin]]
+name = "redfire-cli"
+path = "src/bin/cli.rs"
+
+[[bin]]
+name = "redfire-diag"
+path = "src/bin/redfire-diag.rs"
+
+[[bin]]
+name = "interface-test"
+path = "src/bin/interface-test.rs"
+
+[[bin]]
+name = "timing-manager"
+path = "src/bin/timing-manager.rs"
+
+[[bin]]
+name = "b2bua-cli"
+path = "src/bin/b2bua-cli.rs"
+
+
+[[bin]]
+name = "test-runner"
+path = "src/bin/test-runner.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+opt-level = 0
+debug = true

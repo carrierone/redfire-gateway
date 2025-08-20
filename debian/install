@@ -1,0 +1,19 @@
+# Binary files
+target/release/redfire-gateway usr/bin/
+target/release/redfire-cli usr/bin/
+target/release/redfire-diag usr/bin/
+target/release/interface-test usr/bin/
+target/release/timing-manager usr/bin/
+
+# Systemd service files
+debian/redfire-gateway.service lib/systemd/system/
+debian/redfire-timing.service lib/systemd/system/
+
+# Configuration templates
+config/ usr/share/redfire-gateway/
+examples/ usr/share/redfire-gateway/
+
+# Documentation
+docs/ usr/share/doc/redfire-gateway/
+README.md usr/share/doc/redfire-gateway/
+LICENSE usr/share/doc/redfire-gateway/

@@ -1,0 +1,35 @@
+#!/usr/bin/make -f
+
+# Debian package build rules for Redfire Gateway
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Build all binaries in release mode
+	cargo build --release --all
+
+override_dh_auto_test:
+	# Run tests (skip if cross-compiling)
+	cargo test --all
+
+override_dh_auto_install:
+	# Install binaries using debian/install file
+	dh_auto_install
+
+override_dh_installsystemd:
+	# Install systemd service files
+	dh_installsystemd --name=redfire-gateway redfire-gateway.service
+	dh_installsystemd --name=redfire-timing redfire-timing.service
+
+override_dh_installinit:
+	# Skip traditional init scripts - we use systemd
+
+override_dh_auto_clean:
+	cargo clean
+
+# Enable all hardening options
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# Set Rust build flags for optimization and security
+export RUSTFLAGS = -C target-cpu=native -C opt-level=3 -C lto=fat

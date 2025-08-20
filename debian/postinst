@@ -1,0 +1,184 @@
+#!/bin/bash
+
+set -e
+
+# Package configuration
+PACKAGE="redfire-gateway"
+USER="redfire"
+GROUP="redfire"
+HOME_DIR="/var/lib/redfire-gateway"
+LOG_DIR="/var/log/redfire-gateway"
+CONFIG_DIR="/etc/redfire-gateway"
+
+case "$1" in
+    configure)
+        # Create system user and group
+        if ! getent group "$GROUP" > /dev/null 2>&1; then
+            addgroup --system "$GROUP"
+        fi
+
+        if ! getent passwd "$USER" > /dev/null 2>&1; then
+            adduser --system --home "$HOME_DIR" --shell /bin/false \
+                    --no-create-home --ingroup "$GROUP" \
+                    --gecos "Redfire Gateway Service" "$USER"
+        fi
+
+        # Create directories
+        mkdir -p "$HOME_DIR"
+        mkdir -p "$LOG_DIR"
+        mkdir -p "$CONFIG_DIR"
+        mkdir -p "$CONFIG_DIR/ssl"
+        mkdir -p "$HOME_DIR/pid"
+        mkdir -p "$HOME_DIR/tmp"
+
+        # Set permissions
+        chown -R "$USER:$GROUP" "$HOME_DIR"
+        chown -R "$USER:$GROUP" "$LOG_DIR"
+        chown -R root:root "$CONFIG_DIR"
+        chmod 755 "$CONFIG_DIR"
+        chmod 750 "$CONFIG_DIR/ssl"
+        chmod 755 "$HOME_DIR"
+        chmod 755 "$LOG_DIR"
+        chmod 755 "$HOME_DIR/pid"
+        chmod 755 "$HOME_DIR/tmp"
+
+        # Create default configuration if it doesn't exist
+        if [ ! -f "$CONFIG_DIR/gateway.toml" ]; then
+            cat > "$CONFIG_DIR/gateway.toml" << 'EOF'
+# Redfire Gateway Configuration
+# See documentation at: https://github.com/redfiretel/redfire-gateway
+
+[general]
+name = "Redfire Gateway"
+location = "Local Site"
+contact = "admin@example.com"
+timezone = "UTC"
+
+[tdmoe]
+interface = "eth0"
+channels = 30
+protocol = "E1"
+framing = "CRC4"
+line_coding = "HDB3"
+
+[sip]
+listen_addr = "0.0.0.0:5060"
+domain = "gateway.local"
+realm = "redfire"
+transport = "UDP"
+
+[rtp]
+port_range = "10000-20000"
+
+[logging]
+level = "info"
+file = "/var/log/redfire-gateway/gateway.log"
+max_size = 10485760
+max_files = 5
+format = "json"
+
+[performance]
+enabled = true
+interval = 30
+history_size = 1000
+
+[snmp]
+enabled = false
+community = "public"
+port = 161
+location = "Gateway Location"
+contact = "admin@example.com"
+EOF
+            chown root:root "$CONFIG_DIR/gateway.toml"
+            chmod 644 "$CONFIG_DIR/gateway.toml"
+        fi
+
+        # Create log rotation configuration
+        cat > "/etc/logrotate.d/redfire-gateway" << 'EOF'
+/var/log/redfire-gateway/*.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 644 redfire redfire
+    postrotate
+        systemctl reload redfire-gateway 2>/dev/null || true
+    endscript
+}
+EOF
+
+        # Create rsyslog configuration for structured logging
+        cat > "/etc/rsyslog.d/30-redfire-gateway.conf" << 'EOF'
+# Redfire Gateway logging configuration
+if $programname == "redfire-gateway" then {
+    /var/log/redfire-gateway/gateway.log
+    stop
+}
+
+if $programname == "redfire-timing" then {
+    /var/log/redfire-gateway/timing.log
+    stop
+}
+
+if $programname == "redfire-cli" then {
+    /var/log/redfire-gateway/cli.log
+    stop
+}
+
+if $programname == "redfire-diag" then {
+    /var/log/redfire-gateway/diagnostics.log
+    stop
+}
+EOF
+
+        # Reload systemd daemon
+        systemctl daemon-reload
+
+        # Enable services
+        systemctl enable redfire-gateway.service
+        systemctl enable redfire-timing.service
+
+        # Start services if this is a fresh install
+        if [ -z "$2" ]; then
+            echo "Starting Redfire Gateway services..."
+            systemctl start redfire-gateway.service
+            systemctl start redfire-timing.service
+        fi
+
+        # Restart rsyslog to pick up new configuration
+        systemctl restart rsyslog 2>/dev/null || true
+
+        echo ""
+        echo "Redfire Gateway has been installed successfully!"
+        echo ""
+        echo "Configuration file: $CONFIG_DIR/gateway.toml"
+        echo "Log directory: $LOG_DIR"
+        echo "Service user: $USER"
+        echo ""
+        echo "Management commands:"
+        echo "  systemctl status redfire-gateway    # Check service status"
+        echo "  systemctl start redfire-gateway     # Start the gateway"
+        echo "  systemctl stop redfire-gateway      # Stop the gateway"
+        echo "  systemctl restart redfire-gateway   # Restart the gateway"
+        echo ""
+        echo "Diagnostic tools:"
+        echo "  redfire-cli status                  # Gateway status"
+        echo "  redfire-diag system                 # System diagnostics"
+        echo "  timing-manager status               # Timing status"
+        echo "  interface-test --help               # Interface testing"
+        echo ""
+        echo "Documentation: https://github.com/redfiretel/redfire-gateway"
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

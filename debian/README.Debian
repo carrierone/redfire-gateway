@@ -1,0 +1,79 @@
+Redfire Gateway for Debian
+==========================
+
+This package provides the Redfire Gateway TDMoE to SIP gateway system
+for Debian and Ubuntu systems.
+
+Quick Start
+-----------
+
+After installation, the gateway can be configured by editing:
+
+    /etc/redfire-gateway/gateway.toml
+
+The main services can be managed with systemctl:
+
+    sudo systemctl start redfire-gateway
+    sudo systemctl enable redfire-gateway
+    sudo systemctl status redfire-gateway
+
+Command-line tools are available for management:
+
+    redfire-cli status          # Check gateway status
+    redfire-diag system         # System diagnostics
+    timing-manager status       # Timing information
+    interface-test --help       # Interface testing
+
+Configuration
+-------------
+
+The default configuration file is created during installation at:
+/etc/redfire-gateway/gateway.toml
+
+Key settings to review:
+- TDMoE interface configuration ([tdmoe] section)
+- SIP server settings ([sip] section)
+- RTP port ranges ([rtp] section)
+- Logging configuration ([logging] section)
+
+Security Considerations
+-----------------------
+
+The gateway runs as the 'redfire' user with minimal privileges.
+Log files are stored in /var/log/redfire-gateway/ with appropriate
+permissions.
+
+For production deployments:
+1. Configure firewall rules for SIP and RTP traffic
+2. Set up SSL/TLS certificates for secure SIP transport
+3. Configure SNMP community strings if using SNMP monitoring
+4. Review and adjust user authentication settings
+
+Troubleshooting
+---------------
+
+If services fail to start:
+1. Check configuration syntax: redfire-cli config validate
+2. Verify file permissions in /var/lib/redfire-gateway
+3. Check logs: journalctl -u redfire-gateway
+4. Review system requirements in DEPLOYMENT.md
+
+Common issues:
+- TDMoE interface not detected: Check network interface configuration
+- SIP registration failures: Verify network connectivity and credentials
+- Timing synchronization issues: Check NTP/GPS configuration
+
+Documentation
+-------------
+
+Full documentation is available in:
+- /usr/share/doc/redfire-gateway/
+- Online: https://docs.redfire.tel/
+
+Support
+-------
+
+Community support: https://community.redfire.tel/
+Enterprise support: support@redfire.tel
+
+ -- Redfire Telecommunications <support@redfire.tel>

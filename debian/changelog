@@ -1,0 +1,28 @@
+redfire-gateway (1.0.0-1) unstable; urgency=medium
+
+  * Initial release of Redfire Gateway
+  * Complete TDMoE to SIP gateway implementation
+  * Advanced timing and clock synchronization support
+  * Comprehensive testing and diagnostics framework
+  * Production-ready with systemd integration
+  * Features include:
+    - TDMoE interface support with error correction
+    - SIP/SDP protocol handling with full RFC compliance
+    - RTP media processing with codec negotiation
+    - PRI emulation for legacy ISDN integration
+    - Sigtran/SS7 support for mobile network interconnection
+    - GPS/NTP/PTP timing synchronization
+    - SNMP management interface
+    - Real-time diagnostics and monitoring
+    - High-availability features
+
+ -- Redfire Telecommunications <support@redfire.tel>  Wed, 14 Aug 2025 12:00:00 +0000
+
+redfire-gateway (0.9.0-1) experimental; urgency=low
+
+  * Beta release for testing
+  * Core TDMoE and SIP functionality
+  * Basic timing support
+  * Initial testing framework
+
+ -- Redfire Telecommunications <support@redfire.tel>  Mon, 01 Jul 2025 10:00:00 +0000

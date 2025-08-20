@@ -1,0 +1,196 @@
+# Mobile Network Gateway Configuration
+# Specialized configuration for mobile network integration
+# Supports 3G, 4G, VoLTE, and VoWiFi
+
+[general]
+node_id = "redfire-mobile-gw-01"
+description = "Mobile Network Integration Gateway"
+location = "Mobile Core Network"
+contact = "mobile-noc@operator.com"
+max_calls = 10000
+call_timeout = 600
+
+[tdmoe]
+interface = "eth2"
+channels = 30
+mtu = 9000
+qos_dscp = 46
+
+[e1]
+interface = "span1"
+framing = "crc4"
+line_code = "hdb3"
+clock_source = "external"
+time_slots = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]
+channel_associated = false
+
+[sip]
+listen_port = 5060
+domain = "mobile.operator.com"
+transport = "tls"
+max_sessions = 5000
+session_timeout = 1800  # Longer for mobile sessions
+register_interval = 3600
+
+[rtp]
+port_range = { min = 30000, max = 50000 }
+jitter_buffer_size = 200  # Larger buffer for mobile networks
+packet_timeout = 3000
+
+[mobile]
+enabled = true
+network_type = "volte"
+
+[mobile.msc]
+address = "10.1.2.100"
+port = 5060
+protocol = "sip"
+
+# AMR Codec Configuration
+[mobile.codecs.amr]
+enabled = true
+modes = ["4.75", "5.15", "5.90", "6.70", "7.40", "7.95", "10.2", "12.2"]
+mode_set = 255  # All modes supported
+octet_align = true
+robust_sorting = true
+
+# AMR-WB Codec Configuration  
+[mobile.codecs.amr_wb]
+enabled = true
+modes = ["6.60", "8.85", "12.65", "14.25", "15.85", "18.25", "19.85", "23.05", "23.85"]
+mode_set = 511  # All modes supported
+octet_align = true
+
+# EVS Codec Configuration
+[mobile.codecs.evs]
+enabled = true
+primary_mode = 13200
+modes = ["5.9", "7.2", "8.0", "9.6", "13.2", "16.4", "24.4", "32.0", "48.0", "64.0", "96.0", "128.0"]
+vbr = true
+
+# QoS Configuration
+[mobile.qos]
+enabled = true
+conversational_class = 1
+max_bitrate = 128000
+guaranteed_bitrate = 32000
+transfer_delay = 150
+traffic_handling_priority = 1
+
+# Emergency Services
+[mobile.emergency]
+enabled = true
+emergency_numbers = ["112", "911", "999", "000", "110", "119"]
+location_info = true
+
+[trunk]
+trunk_type = "voice"
+signaling = "pri"
+
+[trunk.codec]
+allowed_codecs = ["amr", "amr-wb", "evs", "g711a", "g722"]
+preferred_codec = "amr"
+
+[trunk.codec.dtmf]
+method = "rfc2833"
+payload_type = 101
+duration = 160
+volume = -8
+inter_digit_delay = 100
+
+[b2bua]
+enabled = true
+max_concurrent_calls = 5000
+call_timeout = 1800
+media_timeout = 300
+enable_media_relay = true
+enable_codec_transcoding = true
+transcoding_backend = "auto"
+
+# Mobile-specific routing
+[[b2bua.routing_table]]
+id = "emergency"
+pattern = "^(112|911|999|000|110|119)$"
+route_type = "emergency"
+target = "emergency.mobile.operator.com"
+priority = 1
+codec_preference = ["amr", "g711a"]
+
+[[b2bua.routing_table]]
+id = "voip-to-mobile"
+pattern = "^\\+?[1-9][0-9]{7,14}$"
+route_type = "gateway"
+target = "mobile.core.operator.com"
+priority = 5
+codec_preference = ["amr", "amr-wb", "evs"]
+
+[[b2bua.routing_table]]
+id = "mobile-to-pstn"
+pattern = "^[2-9][0-9]+$"
+route_type = "trunk"
+target = "pstn.gateway.operator.com"
+priority = 10
+codec_preference = ["g711a", "g722"]
+
+[[b2bua.routing_table]]
+id = "international-mobile"
+pattern = "^\\+[1-9][0-9]{6,14}$"
+route_type = "gateway"
+target = "international.mobile.operator.com"
+priority = 15
+codec_preference = ["amr", "g729"]
+
+# High availability clustering for mobile
+[b2bua.clustering]
+enabled = true
+cluster_id = "mobile-cluster-01"
+node_id = "mobile-node-01"
+anycast_addresses = ["10.1.2.200", "10.1.2.201", "10.1.2.202"]
+sync_port = 8080
+heartbeat_interval = 15  # Faster heartbeat for mobile
+transaction_sync_enabled = true
+shared_state_backend = { Etcd = { endpoints = ["http://10.1.2.10:2379", "http://10.1.2.11:2379", "http://10.1.2.12:2379"] } }
+consensus_algorithm = "raft"
+
+[performance]
+enabled = true
+interval = 10000
+history_size = 1440  # 24 hours at 1-minute intervals
+
+[performance.thresholds.cpu]
+warning = 70.0
+critical = 90.0
+
+[performance.thresholds.memory]
+warning = 75.0
+critical = 90.0
+
+[performance.thresholds.network]
+error_rate = 0.05
+utilization_warning = 70.0
+
+[logging]
+level = "info"
+file = "/var/log/redfire-mobile/gateway.log"
+max_size = 2147483648  # 2GB
+max_files = 30
+format = "json"
+
+[snmp]
+enabled = true
+community = "mobile_monitoring"
+port = 161
+bind_address = "0.0.0.0"
+version = "v3"
+
+[testing]
+[testing.loopback]
+enabled = true
+timeout = 15000
+max_concurrent = 20
+
+[testing.bert]
+enabled = true
+patterns = ["prbs_15", "prbs_23"]
+default_duration = 600
+error_threshold = 0.00001  # Stricter for mobile networks

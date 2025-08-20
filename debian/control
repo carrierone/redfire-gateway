@@ -1,0 +1,30 @@
+Package: redfire-gateway
+Version: 1.0.0
+Section: net
+Priority: optional
+Architecture: amd64
+Depends: libc6 (>= 2.31), libssl3 (>= 3.0.0), systemd (>= 247)
+Recommends: chrony, ntp, gpsd
+Suggests: wireshark, tcpdump, asterisk
+Maintainer: Redfire Telecommunications <support@redfire.tel>
+Homepage: https://github.com/redfiretel/redfire-gateway
+Description: TDMoE to SIP Gateway with Advanced Telecommunications Features
+ Redfire Gateway is a comprehensive telecommunications gateway that bridges
+ legacy Time Division Multiplexing over Ethernet (TDMoE) infrastructure with
+ modern Session Initiation Protocol (SIP) and Voice over IP (VoIP) systems.
+ .
+ Key Features:
+  * TDMoE interface support with advanced framing and error correction
+  * SIP/SDP protocol handling with full RFC compliance
+  * RTP media processing with codec negotiation
+  * PRI (Primary Rate Interface) emulation for legacy ISDN integration
+  * Sigtran/SS7 protocol support for mobile network interconnection
+  * Advanced timing and clock synchronization (GPS, NTP, PTP, Stratum)
+  * Comprehensive testing and monitoring capabilities
+  * SNMP management interface
+  * Real-time diagnostics and troubleshooting tools
+  * High-availability and redundancy features
+ .
+ This package includes the main gateway daemon, command-line tools,
+ configuration files, and documentation for deployment in carrier-grade
+ telecommunications environments.

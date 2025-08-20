@@ -1,0 +1,198 @@
+{
+  "name": "Comprehensive B2BUA Test Suite",
+  "description": "Complete validation of B2BUA functionality including transcoding, DTMF, and stress testing",
+  "version": "1.0",
+  "tests": [
+    {
+      "name": "basic_g711u_calls",
+      "test_type": "basic_call",
+      "description": "Basic G.711u call flow validation",
+      "parameters": {
+        "calls": 10,
+        "duration": 30,
+        "codec": "g711u"
+      },
+      "expected_results": {
+        "success_rate_percent": 100.0,
+        "max_setup_time_ms": 500
+      }
+    },
+    {
+      "name": "basic_g711a_calls", 
+      "test_type": "basic_call",
+      "description": "Basic G.711a call flow validation",
+      "parameters": {
+        "calls": 10,
+        "duration": 30,
+        "codec": "g711a"
+      },
+      "expected_results": {
+        "success_rate_percent": 100.0,
+        "max_setup_time_ms": 500
+      }
+    },
+    {
+      "name": "g711u_to_g711a_transcoding",
+      "test_type": "transcoding",
+      "description": "μ-law to A-law transcoding validation",
+      "parameters": {
+        "from_codec": "g711u",
+        "to_codec": "g711a", 
+        "duration": 60
+      },
+      "expected_results": {
+        "success_rate_percent": 100.0,
+        "max_transcoding_latency_ms": 10,
+        "min_mos_score": 4.0
+      }
+    },
+    {
+      "name": "g711_to_g722_transcoding",
+      "test_type": "transcoding", 
+      "description": "Narrowband to wideband transcoding",
+      "parameters": {
+        "from_codec": "g711u",
+        "to_codec": "g722",
+        "duration": 60
+      },
+      "expected_results": {
+        "success_rate_percent": 100.0,
+        "max_transcoding_latency_ms": 20,
+        "min_mos_score": 3.8
+      }
+    },
+    {
+      "name": "g711_to_opus_transcoding",
+      "test_type": "transcoding",
+      "description": "Legacy to modern codec transcoding", 
+      "parameters": {
+        "from_codec": "g711u",
+        "to_codec": "opus",
+        "duration": 60
+      },
+      "expected_results": {
+        "success_rate_percent": 95.0,
+        "max_transcoding_latency_ms": 50,
+        "min_mos_score": 4.2
+      }
+    },
+    {
+      "name": "dtmf_rfc2833_relay",
+      "test_type": "dtmf",
+      "description": "RFC 2833 DTMF event relay validation",
+      "parameters": {
+        "sequence": "123456789*0#ABCD",
+        "method": "rfc2833"
+      },
+      "expected_results": {
+        "dtmf_accuracy_percent": 100.0,
+        "max_dtmf_delay_ms": 100
+      }
+    },
+    {
+      "name": "dtmf_sip_info_relay",
+      "test_type": "dtmf",
+      "description": "SIP INFO DTMF relay validation",
+      "parameters": {
+        "sequence": "123456789*0#",
+        "method": "info"
+      },
+      "expected_results": {
+        "dtmf_accuracy_percent": 100.0,
+        "max_dtmf_delay_ms": 200
+      }
+    },
+    {
+      "name": "moderate_stress_test",
+      "test_type": "stress",
+      "description": "Moderate load testing",
+      "parameters": {
+        "concurrent": 25,
+        "total": 100,
+        "rate": 5,
+        "duration": 60
+      },
+      "expected_results": {
+        "success_rate_percent": 99.0,
+        "max_cpu_percent": 80.0,
+        "max_memory_mb": 512
+      }
+    },
+    {
+      "name": "high_concurrency_test",
+      "test_type": "stress", 
+      "description": "High concurrency validation",
+      "parameters": {
+        "concurrent": 100,
+        "total": 500,
+        "rate": 10,
+        "duration": 120
+      },
+      "expected_results": {
+        "success_rate_percent": 95.0,
+        "max_response_time_ms": 1000,
+        "max_cpu_percent": 90.0
+      }
+    },
+    {
+      "name": "packet_loss_resilience",
+      "test_type": "quality",
+      "description": "Performance under packet loss",
+      "parameters": {
+        "packet_loss": 2.0,
+        "jitter": 20,
+        "delay": 50
+      },
+      "expected_results": {
+        "min_mos_score": 3.5,
+        "max_jitter_ms": 30
+      }
+    },
+    {
+      "name": "high_jitter_resilience", 
+      "test_type": "quality",
+      "description": "Performance under high jitter",
+      "parameters": {
+        "packet_loss": 0.5,
+        "jitter": 100,
+        "delay": 150
+      },
+      "expected_results": {
+        "min_mos_score": 3.0,
+        "call_completion_percent": 90.0
+      }
+    },
+    {
+      "name": "codec_negotiation_test",
+      "test_type": "negotiation",
+      "description": "Multi-codec negotiation validation",
+      "parameters": {
+        "codecs": ["g711u", "g711a", "g722", "opus"]
+      },
+      "expected_results": {
+        "negotiation_success_percent": 100.0,
+        "preferred_codec_selection": "opus"
+      }
+    }
+  ],
+  "test_environment": {
+    "network_conditions": {
+      "bandwidth_kbps": 1000,
+      "base_latency_ms": 20,
+      "base_jitter_ms": 5,
+      "base_loss_percent": 0.1
+    },
+    "gateway_config": {
+      "max_concurrent_calls": 200,
+      "transcoding_enabled": true,
+      "gpu_acceleration": true,
+      "clustering_enabled": false
+    }
+  },
+  "reporting": {
+    "generate_html": true,
+    "include_charts": true,
+    "export_csv": true,
+    "email_report": false
+  }
+}

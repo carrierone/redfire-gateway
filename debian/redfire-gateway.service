@@ -1,0 +1,39 @@
+[Unit]
+Description=Redfire Gateway - TDMoE to SIP Gateway
+Documentation=https://github.com/redfiretel/redfire-gateway
+After=network.target network-online.target
+Wants=network-online.target
+ConditionPathExists=/usr/bin/redfire-gateway
+
+[Service]
+Type=notify
+User=redfire
+Group=redfire
+WorkingDirectory=/var/lib/redfire-gateway
+ExecStart=/usr/bin/redfire-gateway --config /etc/redfire-gateway/gateway.toml
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=redfire-gateway
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/redfire-gateway /var/log/redfire-gateway
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=32768
+
+# Environment
+Environment=RUST_LOG=info
+Environment=RUST_BACKTRACE=1
+
+[Install]
+WantedBy=multi-user.target

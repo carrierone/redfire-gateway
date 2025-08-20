@@ -1,0 +1,3 @@
+cargo:rerun-if-changed=build.rs
+cargo:rerun-if-changed=src/
+cargo:rustc-env=VERSION_INFO_PATH=/home/justin/projects/redfire-gateway/target/release/build/redfire-codec-engine-fcfcb7adf0baf272/out/version_info.rs

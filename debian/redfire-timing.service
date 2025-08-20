@@ -1,0 +1,36 @@
+[Unit]
+Description=Redfire Gateway Timing Service
+Documentation=https://github.com/redfiretel/redfire-gateway
+After=network.target redfire-gateway.service
+Requires=redfire-gateway.service
+ConditionPathExists=/usr/bin/timing-manager
+
+[Service]
+Type=forking
+User=redfire
+Group=redfire
+WorkingDirectory=/var/lib/redfire-gateway
+ExecStart=/usr/bin/timing-manager status --continuous --interval 60
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=15
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=redfire-timing
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/redfire-gateway /var/log/redfire-gateway
+
+# Resource limits
+LimitNOFILE=1024
+LimitNPROC=512
+
+# Environment
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=multi-user.target

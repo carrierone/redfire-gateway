@@ -1,0 +1,43 @@
+#!/bin/bash
+
+set -e
+
+case "$1" in
+    purge)
+        # Remove configuration files and user data
+        rm -rf /etc/redfire-gateway
+        rm -rf /var/lib/redfire-gateway
+        rm -rf /var/log/redfire-gateway
+        
+        # Remove logrotate configuration
+        rm -f /etc/logrotate.d/redfire-gateway
+        
+        # Remove rsyslog configuration
+        rm -f /etc/rsyslog.d/30-redfire-gateway.conf
+        systemctl restart rsyslog 2>/dev/null || true
+        
+        # Remove system user and group
+        if getent passwd redfire > /dev/null; then
+            deluser redfire 2>/dev/null || true
+        fi
+        
+        if getent group redfire > /dev/null; then
+            delgroup redfire 2>/dev/null || true
+        fi
+        
+        # Reload systemd daemon
+        systemctl daemon-reload
+        
+        echo "Redfire Gateway has been completely removed."
+        ;;
+        
+    remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+        
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

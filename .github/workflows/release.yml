@@ -1,0 +1,301 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0-beta.1)'
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Get version
+      id: get_version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        version="${{ steps.get_version.outputs.version }}"
+        echo "Generating release notes for $version"
+        
+        # Extract changelog section for this version
+        if grep -q "## \[$version\]" CHANGELOG.md; then
+          sed -n "/## \[$version\]/,/## \[/p" CHANGELOG.md | head -n -1 > release_notes.md
+        else
+          echo "Release notes for $version" > release_notes.md
+          echo "" >> release_notes.md
+          echo "See [CHANGELOG.md](CHANGELOG.md) for detailed changes." >> release_notes.md
+        fi
+        
+        # Add beta disclaimer if this is a beta release
+        if [[ "$version" == *"beta"* ]]; then
+          echo "" >> release_notes.md
+          echo "⚠️ **Beta Release Notice**" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "This is a beta release with stub implementations for SIP and transcoding functionality." >> release_notes.md
+          echo "External libraries are required for full operation. See [INTEGRATION.md](https://github.com/redfire/redfire-gateway/blob/main/INTEGRATION.md) for integration guidelines." >> release_notes.md
+          echo "" >> release_notes.md
+          echo "**Important**: Binary executables in this beta require updates to work with the new stub architecture." >> release_notes.md
+        fi
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.get_version.outputs.version }}
+        release_name: Redfire Gateway ${{ steps.get_version.outputs.version }}
+        body_path: release_notes.md
+        draft: true
+        prerelease: ${{ contains(steps.get_version.outputs.version, 'beta') || contains(steps.get_version.outputs.version, 'alpha') || contains(steps.get_version.outputs.version, 'rc') }}
+
+  build-and-upload:
+    name: Build and Upload (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary-suffix: ""
+          - os: ubuntu-20.04
+            target: x86_64-unknown-linux-gnu
+            binary-suffix: "-ubuntu20"
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+    
+    - name: Setup Cache
+      uses: Swatinem/rust-cache@v2
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libpcap-dev \
+          libsnmp-dev \
+          pkg-config \
+          musl-tools
+
+    - name: Build release
+      run: |
+        cargo build --release --target ${{ matrix.target }}
+
+    - name: Create release package
+      run: |
+        mkdir -p release-package
+        
+        # Copy binaries
+        cp target/${{ matrix.target }}/release/redfire-gateway release-package/
+        cp target/${{ matrix.target }}/release/redfire-cli release-package/
+        cp target/${{ matrix.target }}/release/redfire-diag release-package/
+        cp target/${{ matrix.target }}/release/interface-test release-package/
+        cp target/${{ matrix.target }}/release/timing-manager release-package/
+        cp target/${{ matrix.target }}/release/b2bua-cli release-package/
+        cp target/${{ matrix.target }}/release/softphone release-package/
+        cp target/${{ matrix.target }}/release/test-runner release-package/
+        
+        # Copy documentation and configuration
+        cp README.md release-package/
+        cp CHANGELOG.md release-package/
+        cp INTEGRATION.md release-package/
+        cp LICENSE-GPL release-package/
+        
+        # Copy example configurations if they exist
+        if [ -d examples ]; then
+          cp -r examples release-package/
+        fi
+        
+        # Create checksums
+        cd release-package
+        sha256sum * > SHA256SUMS
+        cd ..
+        
+        # Create tarball
+        tar -czf redfire-gateway-${{ needs.create-release.outputs.version }}-${{ matrix.target }}${{ matrix.binary-suffix }}.tar.gz -C release-package .
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: redfire-gateway-${{ needs.create-release.outputs.version }}-${{ matrix.target }}${{ matrix.binary-suffix }}.tar.gz
+        asset_name: redfire-gateway-${{ needs.create-release.outputs.version }}-${{ matrix.target }}${{ matrix.binary-suffix }}.tar.gz
+        asset_content_type: application/gzip
+
+  build-docker:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: create-release
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Docker Hub
+      if: github.repository == 'redfire/redfire-gateway'
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: redfire/redfire-gateway
+        tags: |
+          type=ref,event=tag
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value=beta,enable=${{ contains(needs.create-release.outputs.version, 'beta') }}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64
+        push: ${{ github.repository == 'redfire/redfire-gateway' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          VERSION=${{ needs.create-release.outputs.version }}
+
+  publish-crates:
+    name: Publish to Crates.io
+    runs-on: ubuntu-latest
+    needs: [create-release, build-and-upload]
+    if: ${{ !contains(needs.create-release.outputs.version, 'beta') && !contains(needs.create-release.outputs.version, 'alpha') }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Setup Cache
+      uses: Swatinem/rust-cache@v2
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libpcap-dev \
+          libsnmp-dev \
+          pkg-config
+
+    - name: Publish to crates.io
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      run: |
+        # Verify we can build and test first
+        cargo build --lib
+        cargo test --lib
+        
+        # Publish (dry run first)
+        cargo publish --dry-run
+        cargo publish
+
+  update-homebrew:
+    name: Update Homebrew Formula
+    runs-on: ubuntu-latest
+    needs: [create-release, build-and-upload]
+    if: ${{ !contains(needs.create-release.outputs.version, 'beta') && !contains(needs.create-release.outputs.version, 'alpha') }}
+    
+    steps:
+    - name: Update Homebrew Formula
+      uses: mislav/bump-homebrew-formula-action@v2
+      with:
+        formula-name: redfire-gateway
+        homebrew-tap: redfire/homebrew-tap
+        base-branch: main
+        download-url: https://github.com/redfire/redfire-gateway/releases/download/${{ needs.create-release.outputs.version }}/redfire-gateway-${{ needs.create-release.outputs.version }}-x86_64-unknown-linux-gnu.tar.gz
+      env:
+        COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+  notify-release:
+    name: Notify Release
+    runs-on: ubuntu-latest
+    needs: [create-release, build-and-upload, build-docker]
+    if: always()
+    
+    steps:
+    - name: Notify on Discord
+      if: env.DISCORD_WEBHOOK != ''
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      run: |
+        version="${{ needs.create-release.outputs.version }}"
+        if [ "${{ needs.build-and-upload.result }}" = "success" ]; then
+          curl -H "Content-Type: application/json" \
+               -d "{\"content\": \"🚀 Redfire Gateway $version has been released! https://github.com/redfire/redfire-gateway/releases/tag/$version\"}" \
+               $DISCORD_WEBHOOK
+        else
+          curl -H "Content-Type: application/json" \
+               -d "{\"content\": \"❌ Redfire Gateway $version release failed\"}" \
+               $DISCORD_WEBHOOK
+        fi
+
+    - name: Update announcement issue
+      if: github.repository == 'redfire/redfire-gateway'
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const version = "${{ needs.create-release.outputs.version }}";
+          const isSuccess = "${{ needs.build-and-upload.result }}" === "success";
+          
+          if (isSuccess) {
+            // Create an announcement issue for the release
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚀 Release ${version} is now available!`,
+              body: `Redfire Gateway ${version} has been released!\n\n` +
+                    `📥 **Download**: https://github.com/redfire/redfire-gateway/releases/tag/${version}\n\n` +
+                    `📝 **Changelog**: See [CHANGELOG.md](https://github.com/redfire/redfire-gateway/blob/main/CHANGELOG.md)\n\n` +
+                    `🐳 **Docker**: \`docker pull redfire/redfire-gateway:${version}\`\n\n` +
+                    (version.includes('beta') ? 
+                      `⚠️ **Beta Release**: This is a beta release with stub implementations. See [INTEGRATION.md](https://github.com/redfire/redfire-gateway/blob/main/INTEGRATION.md) for integration guidelines.` :
+                      `🎉 **Stable Release**: This is a stable release ready for production use.`),
+              labels: ['announcement', 'release']
+            });
+          }

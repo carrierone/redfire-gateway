@@ -1,0 +1,95 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:          redfire-gateway
+# Required-Start:    $network $remote_fs $syslog
+# Required-Stop:     $network $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Redfire Gateway TDMoE to SIP Gateway
+# Description:       Advanced telecommunications gateway for bridging
+#                    legacy TDM infrastructure with modern SIP/VoIP systems
+### END INIT INFO
+
+# Configuration
+NAME="redfire-gateway"
+DAEMON="/usr/bin/redfire-gateway"
+DAEMON_ARGS="--config /etc/redfire-gateway/gateway.toml"
+PIDFILE="/var/run/redfire-gateway.pid"
+USER="redfire"
+GROUP="redfire"
+
+# Load LSB functions
+. /lib/lsb/init-functions
+
+# Check if daemon exists
+test -x $DAEMON || exit 5
+
+# Check if config directory exists
+if [ ! -d /etc/redfire-gateway ]; then
+    log_failure_msg "Configuration directory /etc/redfire-gateway does not exist"
+    exit 5
+fi
+
+# Create run directory if it doesn't exist
+if [ ! -d /var/run ]; then
+    mkdir -p /var/run
+fi
+
+case "$1" in
+    start)
+        log_daemon_msg "Starting $NAME"
+        
+        # Check if already running
+        if start-stop-daemon --start --quiet --oknodo --pidfile $PIDFILE \
+                --chuid $USER:$GROUP --background --make-pidfile \
+                --exec $DAEMON -- $DAEMON_ARGS; then
+            log_end_msg 0
+        else
+            log_end_msg 1
+        fi
+        ;;
+        
+    stop)
+        log_daemon_msg "Stopping $NAME"
+        
+        if start-stop-daemon --stop --quiet --oknodo --pidfile $PIDFILE \
+                --retry 30; then
+            rm -f $PIDFILE
+            log_end_msg 0
+        else
+            log_end_msg 1
+        fi
+        ;;
+        
+    restart)
+        $0 stop
+        sleep 2
+        $0 start
+        ;;
+        
+    reload)
+        log_daemon_msg "Reloading $NAME configuration"
+        
+        if start-stop-daemon --stop --signal HUP --quiet --pidfile $PIDFILE; then
+            log_end_msg 0
+        else
+            log_end_msg 1
+        fi
+        ;;
+        
+    force-reload)
+        $0 restart
+        ;;
+        
+    status)
+        status_of_proc -p $PIDFILE $DAEMON $NAME
+        ;;
+        
+    *)
+        echo "Usage: $0 {start|stop|restart|reload|force-reload|status}"
+        exit 2
+        ;;
+esac
+
+exit 0
