@@ -151,6 +151,39 @@ enabled = false
 seizure_timeout = 5000
 mf_signaling = true
 
+[b2bua]
+enabled = true
+max_concurrent_calls = 500
+call_timeout = 300
+media_timeout = 60
+enable_media_relay = true
+enable_codec_transcoding = false  # Set to true when external transcoding library is integrated
+transcoding_backend = "auto"      # cpu, simd, simd-avx2, simd-avx512, cuda, rocm, gpu, auto
+
+# SIMD acceleration settings for codec transcoding
+enable_simd = true
+auto_detect_simd = true          # Auto-detect best available SIMD instruction set
+simd_fallback = true            # Fallback to CPU if SIMD fails
+
+[[b2bua.routing_table]]
+id = "emergency"
+pattern = "^(911|112)$"
+route_type = "emergency"
+target = "emergency.local"
+priority = 1
+codec_preference = ["g711u"]
+
+[[b2bua.routing_table]]
+id = "default"
+pattern = ".*"
+route_type = "direct"
+target = "default.gateway.local"
+priority = 100
+codec_preference = ["g711a", "g711u"]
+
+[b2bua.clustering]
+enabled = false
+
 [performance]
 enabled = true
 interval = 5000

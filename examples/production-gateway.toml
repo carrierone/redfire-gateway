@@ -156,6 +156,12 @@ enable_media_relay = true
 enable_codec_transcoding = true  # When external transcoding library is integrated
 transcoding_backend = "auto"
 
+# SIMD acceleration settings for high-performance codec transcoding
+enable_simd = true
+simd_instruction_set = "avx2"    # Force AVX2, or use "auto" for detection
+auto_detect_simd = false         # Use specific instruction set above
+simd_fallback = true            # Fallback to CPU if SIMD fails
+
 # Production routing rules
 [[b2bua.routing_table]]
 id = "emergency-911"

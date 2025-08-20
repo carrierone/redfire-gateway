@@ -18,7 +18,8 @@ use crate::Result;
 // Import from external redfire-codec-engine library
 use redfire_codec_engine::{
     AudioCodec, CodecService, CodecConfig, create_default_service,
-    gpu_available, available_gpu_backends,
+    gpu_available, available_gpu_backends, simd_available, 
+    available_simd_features, create_simd_service, SimdConfig,
 };
 
 #[cfg(any(feature = "cuda", feature = "rocm"))]
@@ -206,7 +207,7 @@ pub enum TranscodingEvent {
 /// Main transcoding service integrated with redfire-codec-engine
 /// 
 /// This implementation integrates with the external redfire-codec-engine library
-/// to provide professional audio codec transcoding with GPU acceleration support.
+/// to provide professional audio codec transcoding with GPU acceleration and SIMD support.
 pub struct TranscodingService {
     backend_preference: TranscodingBackend,
     codec_service: Option<CodecService>,
@@ -214,10 +215,24 @@ pub struct TranscodingService {
     event_tx: mpsc::UnboundedSender<TranscodingEvent>,
     event_rx: Option<mpsc::UnboundedReceiver<TranscodingEvent>>,
     is_running: bool,
+    simd_config: SimdConfig,
+    enable_simd: bool,
+    auto_detect_simd: bool,
+    simd_fallback: bool,
 }
 
 impl TranscodingService {
     pub fn new(backend_preference: TranscodingBackend) -> Self {
+        Self::new_with_simd_config(backend_preference, true, true, true, None)
+    }
+
+    pub fn new_with_simd_config(
+        backend_preference: TranscodingBackend,
+        enable_simd: bool,
+        auto_detect_simd: bool,
+        simd_fallback: bool,
+        simd_instruction_set: Option<String>,
+    ) -> Self {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
 
         info!("Creating transcoding service with redfire-codec-engine integration, backend preference: {:?}", backend_preference);
@@ -230,6 +245,22 @@ impl TranscodingService {
             info!("GPU transcoding not available, using CPU-only transcoding");
         }
 
+        // Log SIMD availability
+        if simd_available() {
+            let features = available_simd_features();
+            info!("SIMD transcoding available with features: {:?}", features);
+        } else {
+            info!("SIMD transcoding not available");
+        }
+
+        // Create SIMD configuration
+        let simd_config = SimdConfig {
+            enabled: enable_simd,
+            auto_detect: auto_detect_simd,
+            instruction_set: simd_instruction_set,
+            fallback_to_scalar: simd_fallback,
+        };
+
         Self {
             backend_preference,
             codec_service: None, // Will be initialized on first use
@@ -237,6 +268,10 @@ impl TranscodingService {
             event_tx,
             event_rx: Some(event_rx),
             is_running: false,
+            simd_config,
+            enable_simd,
+            auto_detect_simd,
+            simd_fallback,
         }
     }
 
@@ -250,8 +285,26 @@ impl TranscodingService {
         
         // Initialize codec service based on backend preference
         match self.backend_preference {
+            TranscodingBackend::Simd | TranscodingBackend::SimdAvx2 | TranscodingBackend::SimdAvx512 => {
+                match create_simd_service(self.simd_config.clone()).await {
+                    Ok(service) => {
+                        self.codec_service = Some(service);
+                        info!("SIMD transcoding service initialized successfully with config: {:?}", self.simd_config);
+                    }
+                    Err(e) => {
+                        warn!("Failed to initialize SIMD service: {}", e);
+                        if self.simd_fallback {
+                            warn!("Falling back to CPU transcoding");
+                            self.codec_service = Some(create_default_service().await
+                                .map_err(|e| crate::Error::Protocol(format!("Failed to create fallback codec service: {}", e)))?);
+                        } else {
+                            return Err(crate::Error::Protocol(format!("SIMD initialization failed and fallback disabled: {}", e)));
+                        }
+                    }
+                }
+            }
             #[cfg(any(feature = "cuda", feature = "rocm"))]
-            TranscodingBackend::Gpu => {
+            TranscodingBackend::Gpu | TranscodingBackend::Cuda => {
                 match create_gpu_service().await {
                     Ok(service) => {
                         self.codec_service = Some(service);
@@ -259,8 +312,69 @@ impl TranscodingService {
                     }
                     Err(e) => {
                         warn!("Failed to initialize GPU service, falling back to CPU: {}", e);
-                        self.codec_service = Some(create_default_service().await?);
+                        self.codec_service = Some(create_default_service().await
+                            .map_err(|e| crate::Error::Protocol(format!("Failed to create fallback codec service: {}", e)))?);
                     }
+                }
+            }
+            TranscodingBackend::Auto => {
+                // Auto-detect best available backend
+                if self.enable_simd && simd_available() {
+                    info!("Auto-detected SIMD support, using SIMD backend");
+                    match create_simd_service(self.simd_config.clone()).await {
+                        Ok(service) => {
+                            self.codec_service = Some(service);
+                            info!("Auto-selected SIMD transcoding service initialized successfully");
+                        }
+                        Err(e) => {
+                            warn!("SIMD auto-selection failed: {}, trying GPU", e);
+                            #[cfg(any(feature = "cuda", feature = "rocm"))]
+                            if gpu_available() {
+                                match create_gpu_service().await {
+                                    Ok(service) => {
+                                        self.codec_service = Some(service);
+                                        info!("Auto-selected GPU transcoding service initialized successfully");
+                                    }
+                                    Err(e) => {
+                                        warn!("GPU auto-selection also failed: {}, falling back to CPU", e);
+                                        self.codec_service = Some(create_default_service().await
+                                            .map_err(|e| crate::Error::Protocol(format!("Failed to create fallback codec service: {}", e)))?);
+                                    }
+                                }
+                            } else {
+                                self.codec_service = Some(create_default_service().await
+                                    .map_err(|e| crate::Error::Protocol(format!("Failed to create fallback codec service: {}", e)))?);
+                            }
+                            #[cfg(not(any(feature = "cuda", feature = "rocm")))]
+                            {
+                                self.codec_service = Some(create_default_service().await
+                                    .map_err(|e| crate::Error::Protocol(format!("Failed to create fallback codec service: {}", e)))?);
+                            }
+                        }
+                    }
+                } else if gpu_available() {
+                    info!("Auto-detected GPU support, using GPU backend");
+                    #[cfg(any(feature = "cuda", feature = "rocm"))]
+                    match create_gpu_service().await {
+                        Ok(service) => {
+                            self.codec_service = Some(service);
+                            info!("Auto-selected GPU transcoding service initialized successfully");
+                        }
+                        Err(e) => {
+                            warn!("GPU auto-selection failed: {}, falling back to CPU", e);
+                            self.codec_service = Some(create_default_service().await
+                                .map_err(|e| crate::Error::Protocol(format!("Failed to create fallback codec service: {}", e)))?);
+                        }
+                    }
+                    #[cfg(not(any(feature = "cuda", feature = "rocm")))]
+                    {
+                        self.codec_service = Some(create_default_service().await
+                            .map_err(|e| crate::Error::Protocol(format!("Failed to create codec service: {}", e)))?);
+                    }
+                } else {
+                    info!("No accelerated backends available, using CPU");
+                    self.codec_service = Some(create_default_service().await
+                        .map_err(|e| crate::Error::Protocol(format!("Failed to create codec service: {}", e)))?);
                 }
             }
             _ => {

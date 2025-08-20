@@ -586,6 +586,10 @@ pub struct B2buaConfig {
     pub enable_media_relay: bool,
     pub enable_codec_transcoding: bool,
     pub transcoding_backend: TranscodingBackend,
+    pub enable_simd: bool,
+    pub simd_instruction_set: Option<String>,
+    pub auto_detect_simd: bool,
+    pub simd_fallback: bool,
     pub routing_table: Vec<RoutingRule>,
     pub clustering: ClusteringConfig,
 }
@@ -594,10 +598,18 @@ pub struct B2buaConfig {
 pub enum TranscodingBackend {
     #[serde(rename = "cpu")]
     Cpu,
+    #[serde(rename = "simd")]
+    Simd,
+    #[serde(rename = "simd-avx2")]
+    SimdAvx2,
+    #[serde(rename = "simd-avx512")]
+    SimdAvx512,
     #[serde(rename = "cuda")]
     Cuda,
     #[serde(rename = "rocm")]
     Rocm,
+    #[serde(rename = "gpu")]
+    Gpu,
     #[serde(rename = "auto")]
     Auto,
 }
@@ -920,6 +932,10 @@ impl GatewayConfig {
                 enable_media_relay: true,
                 enable_codec_transcoding: false,
                 transcoding_backend: TranscodingBackend::Auto,
+                enable_simd: true,
+                simd_instruction_set: None, // Auto-detect
+                auto_detect_simd: true,
+                simd_fallback: true,
                 routing_table: vec![
                     RoutingRule {
                         id: "emergency".to_string(),

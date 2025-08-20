@@ -63,7 +63,12 @@ call_timeout = 300
 media_timeout = 60
 enable_media_relay = true
 enable_codec_transcoding = false  # Set to true when external transcoding library is integrated
-transcoding_backend = "auto"      # cpu, cuda, rocm, auto
+transcoding_backend = "auto"      # cpu, simd, simd-avx2, simd-avx512, cuda, rocm, gpu, auto
+
+# SIMD acceleration settings (basic configuration)
+enable_simd = true
+auto_detect_simd = true          # Auto-detect best available SIMD instruction set
+simd_fallback = true            # Fallback to CPU if SIMD fails
 
 # Basic routing rules
 [[b2bua.routing_table]]

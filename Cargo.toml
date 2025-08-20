@@ -106,6 +106,10 @@ async-trait = "0.1"
 # Regular expressions
 regex = "1.10"
 
+# SIMD support for codec processing
+wide = "0.7"
+bytemuck = "1.14"
+
 # HTTP client for CLI API calls
 reqwest = { version = "0.11", features = ["json"] }
 
@@ -115,9 +119,12 @@ tempfile = "3.8"
 criterion = "0.5"
 
 [features]
-default = ["performance-monitoring"]
+default = ["performance-monitoring", "simd"]
 performance-monitoring = []
 freetdm = []
+simd = ["wide", "bytemuck"]
+simd-avx2 = ["simd"]
+simd-avx512 = ["simd"]
 
 [[bin]]
 name = "redfire-gateway"
